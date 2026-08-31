@@ -46,7 +46,7 @@ export const env = {
 
   // CORS
   cors: {
-    origin: getEnv('CORS_ORIGIN', 'http://localhost:4200'),
+    origin: getEnv('CORS_ORIGIN', 'http://localhost:4200,https://inventariou.netlify.app'),
   },
 
   // Bcrypt

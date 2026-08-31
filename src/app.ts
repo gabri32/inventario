@@ -14,8 +14,14 @@ import apiRoutes from './routes';
 // Initialize models and associations
 import './database/models';
 
+const normalizeOrigin = (origin: string): string => origin.trim().replace(/\/+$/, '');
+
 const createApp = (): Application => {
   const app = express();
+  const allowedOrigins = env.cors.origin
+    .split(',')
+    .map(normalizeOrigin)
+    .filter(Boolean);
 
   // ─── Security ─────────────────────────────────────────────────────────────
   app.use(
@@ -26,7 +32,20 @@ const createApp = (): Application => {
 
   app.use(
     cors({
-      origin: env.cors.origin,
+      origin: (origin, callback) => {
+        if (!origin) {
+          callback(null, true);
+          return;
+        }
+
+        const normalizedOrigin = normalizeOrigin(origin);
+        if (allowedOrigins.includes(normalizedOrigin)) {
+          callback(null, true);
+          return;
+        }
+
+        callback(new Error(`Origin ${origin} not allowed by CORS`));
+      },
       methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
       allowedHeaders: ['Content-Type', 'Authorization'],
       credentials: true,
