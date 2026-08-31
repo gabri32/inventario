@@ -14,12 +14,24 @@ const __dirname = path.dirname(__filename);
 
 const app = express();
 app.use(express.json());
-var corsOptions = {
-  origin: 'https://inventariou.netlify.app',
-  optionsSuccessStatus: 200, // some legacy browsers (IE11, various SmartTVs) choke on 204
-};
-app.use(cors(corsOptions));
+const allowedOrigins = [
+  'https://inventariou.netlify.app',
+];
 
+const corsOptions = {
+  origin: (origin, callback) => {
+    // Allow requests with no origin (like mobile apps, curl, or Postman)
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  optionsSuccessStatus: 200,
+  credentials: true // Set to true if sending cookies or authorization headers
+};
+
+app.use(cors(corsOptions));
 // Servir archivos estáticos de uploads
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
@@ -29,14 +41,7 @@ app.use('/api/auth', authRoutes);
 
 const PORT = process.env.PORT || 3000;
 
-// Auto-ping cada 12 minutos (720000 ms)
-// setInterval(() => {
-//   https.get("https://uniforce.onrender.com", (res) => {
-//     console.log(`Ping enviado, status code: ${res.statusCode}`);
-//   }).on("error", (err) => {
-//     console.error("Error en auto-ping:", err.message);
-//   });
-// }, 720000);
+
 
 const startServer = async () => {
   try {
