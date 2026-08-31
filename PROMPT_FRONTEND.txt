@@ -1,0 +1,803 @@
+================================================================
+PROMPT — FRONTEND ANGULAR
+SISTEMA ADMINISTRATIVO DE INVENTARIOS
+================================================================
+
+CONTEXTO
+--------
+Desarrollar el frontend completo de un sistema administrativo
+de inventarios usando Angular 17+ con standalone components,
+PrimeNG 17+ y TailwindCSS.
+
+El backend ya existe y está documentado en Swagger:
+http://localhost:3000/api/docs
+
+URL base de la API: http://localhost:3000/api
+
+
+================================================================
+1. STACK TECNOLÓGICO OBLIGATORIO
+================================================================
+
+- Angular 17+ (standalone components, signals)
+- TypeScript strict
+- PrimeNG 17+ para todos los componentes UI
+- TailwindCSS para layout y utilidades
+- Angular Router con lazy loading
+- Angular HttpClient con interceptors
+- RxJS
+- Reactive Forms
+
+
+================================================================
+2. ESTRUCTURA DE CARPETAS
+================================================================
+
+src/
+├── app/
+│   ├── core/
+│   │   ├── auth/              # AuthService, guards
+│   │   ├── interceptors/      # JWT, error, loading
+│   │   ├── models/            # Interfaces TypeScript
+│   │   └── services/          # Servicios HTTP base
+│   ├── shared/
+│   │   ├── components/        # Componentes reutilizables
+│   │   ├── pipes/
+│   │   └── directives/
+│   ├── layout/
+│   │   ├── sidebar/
+│   │   ├── topbar/
+│   │   └── main-layout/
+│   └── modules/
+│       ├── auth/              # login
+│       ├── dashboard/
+│       ├── usuarios/
+│       ├── roles/
+│       ├── productos/
+│       ├── categorias/
+│       ├── bienes/
+│       ├── proveedores/
+│       ├── compras/
+│       ├── ventas/
+│       ├── prestamos/
+│       ├── devoluciones/
+│       ├── inventario/
+│       ├── movimientos/
+│       ├── codigos-barras/
+│       └── reportes/
+
+
+================================================================
+3. AUTENTICACIÓN
+================================================================
+
+- Pantalla de login con campos:
+    identifier  (username o email)
+    password
+
+- Al hacer login exitoso guardar en localStorage:
+    token     → JWT
+    usuario   → objeto con datos del usuario
+    roles     → array de strings
+    permisos  → array de strings
+
+- AuthGuard: verifica token antes de cada ruta protegida
+
+- PermissionGuard: verifica permisos específicos por ruta
+
+- AuthInterceptor: agrega en todas las peticiones:
+    Authorization: Bearer <token>
+
+- ErrorInterceptor:
+    401 → redirigir al login
+    403 → mostrar mensaje de acceso denegado
+    500 → mostrar toast de error
+
+- Al expirar el token redirigir automáticamente al login
+
+
+================================================================
+4. LAYOUT PRINCIPAL
+================================================================
+
+- Sidebar fijo con menú de navegación
+- El menú muestra SOLO las opciones para las que el usuario
+  tiene permisos
+- Topbar con:
+    Nombre del usuario autenticado
+    Avatar o iniciales
+    Botón cerrar sesión
+- Breadcrumb dinámico
+- Soporte para colapsar el sidebar
+- Diseño responsive (mobile-friendly)
+
+
+================================================================
+5. FORMATO DE RESPUESTAS DEL BACKEND
+================================================================
+
+Todas las respuestas del backend siguen este formato:
+
+// Respuesta simple
+interface ApiResponse<T> {
+  success: boolean;
+  message: string;
+  data?: T;
+  errors?: any[];
+}
+
+// Respuesta paginada
+interface PaginatedResponse<T> {
+  success: boolean;
+  data: T[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+}
+
+Crear un BaseApiService que:
+- Use la URL base desde environment.ts
+- Extraiga automáticamente data de las respuestas exitosas
+- Propague los errores con el mensaje del backend
+
+Las listas soportan estos query params:
+  page=1
+  limit=20
+  search=texto
+  (filtros específicos por módulo)
+
+
+================================================================
+5b. ENDPOINTS ADICIONALES DISPONIBLES
+================================================================
+
+  GET  /api/estados/:modulo   → lista estados por módulo
+       Módulos: BIENES, COMPRAS, VENTAS, PRESTAMOS
+       Usar para cargar dropdowns de estado en formularios
+
+  GET  /api/bienes/disponibles            → bienes con estado DISPONIBLE
+  GET  /api/bienes/disponibles?id_producto=uuid → filtrado por producto
+       Usar al crear un préstamo para mostrar bienes seleccionables
+
+  POST /api/bienes/masivo                 → crear N bienes de un producto
+
+  GET  /api/prestamos/prestatarios        → listar prestatarios
+  POST /api/prestamos/prestatarios        → crear prestatario
+
+  GET  /api/dashboard/resumen             → métricas generales
+  GET  /api/dashboard/movimientos-recientes → últimos 10 movimientos
+  GET  /api/dashboard/prestamos-proximos  → préstamos que vencen en 7 días
+
+  GET  /api/reportes/prestamos/por-persona         → bienes prestados por persona
+  GET  /api/reportes/prestamos/por-persona?id_prestatario=uuid
+
+  GET  /api/movimientos  → lista general de movimientos (paginado)
+       Params: page, limit, id_producto, tipo_movimiento,
+               fecha_desde, fecha_hasta, usuario
+
+================================================================
+6. MÓDULO DE USUARIOS
+================================================================
+
+ENDPOINTS DISPONIBLES:
+  GET    /api/usuarios                    → listar (paginado)
+  POST   /api/usuarios                    → crear
+  GET    /api/usuarios/:id                → obtener uno
+  PUT    /api/usuarios/:id                → editar
+  PATCH  /api/usuarios/:id/estado         → activar/desactivar
+  PATCH  /api/usuarios/:id/password       → cambiar contraseña
+  POST   /api/usuarios/:id/roles          → asignar rol
+  DELETE /api/usuarios/:id/roles/:idRol   → quitar rol
+
+LISTA:
+- Tabla con: nombre completo, username, email,
+  roles (badges), estado, fecha creación, acciones
+- Paginación server-side
+- Búsqueda por nombre/apellido/username/email (param: search)
+- Filtro por activo/inactivo
+
+FORMULARIO CREAR/EDITAR:
+- Campos: nombre, apellido, username, email,
+  password (solo crear), confirmar password
+- Validaciones:
+    Password mínimo 8 caracteres
+    Al menos 1 mayúscula
+    Al menos 1 minúscula
+    Al menos 1 número
+    Al menos 1 carácter especial
+
+DIALOGS:
+- Asignación de roles: lista con checkboxes
+- Cambio de contraseña:
+    password actual
+    nueva contraseña
+    confirmar nueva contraseña
+
+PERMISOS REQUERIDOS:
+  USUARIO_LISTAR   → ver lista y detalle
+  USUARIO_CREAR    → botón Nuevo
+  USUARIO_EDITAR   → botones Editar, Activar/Desactivar, Roles
+
+
+================================================================
+7. MÓDULO DE PRODUCTOS Y CATEGORÍAS
+================================================================
+
+ENDPOINTS DISPONIBLES:
+  GET    /api/categorias          → listar
+  POST   /api/categorias          → crear
+  PUT    /api/categorias/:id      → editar
+  PATCH  /api/categorias/:id/estado
+
+  GET    /api/productos           → listar (paginado)
+  POST   /api/productos           → crear
+  GET    /api/productos/:id       → obtener uno
+  PUT    /api/productos/:id       → editar
+  PATCH  /api/productos/:id/estado
+
+TABLA PRODUCTOS:
+- Columnas: código, nombre, categoría, marca, modelo,
+  unidad medida, stock mínimo/máximo, precio compra,
+  precio venta, estado
+- Filtros: categoría, estado, búsqueda por nombre/código
+
+FORMULARIO:
+- Todos los campos del modelo
+- Al crear, opción inmediata de agregar bienes físicos
+
+PERMISOS:
+  PRODUCTO_LISTAR / PRODUCTO_CREAR / PRODUCTO_EDITAR
+
+
+================================================================
+8. MÓDULO DE BIENES
+================================================================
+
+ENDPOINTS DISPONIBLES:
+  GET    /api/bienes                        → listar (paginado)
+  POST   /api/bienes                        → crear
+  GET    /api/bienes/:id                    → obtener uno
+  PUT    /api/bienes/:id                    → editar
+  PATCH  /api/bienes/:id/estado             → cambiar estado
+  GET    /api/bienes/:id/historial          → historial completo
+  GET    /api/bienes/:id/codigo-barras      → datos del código
+  GET    /api/bienes/:id/codigo-barras/imagen → imagen PNG
+  GET    /api/bienes/:id/codigo-barras/pdf  → PDF con código
+  GET    /api/codigos-barras/:codigo        → buscar por código
+
+TABLA:
+- Columnas: id_bien, código interno, número serie, producto,
+  estado (badge de color), ubicación, fecha adquisición,
+  precio adquisición, acciones
+
+COLORES DE BADGE POR ESTADO:
+  DISPONIBLE    → verde   (success)
+  PRESTADO      → azul    (info)
+  EN_REPARACION → amarillo (warning)
+  VENDIDO       → gris    (secondary)
+  DAÑADO        → rojo    (danger)
+  PERDIDO       → rojo oscuro
+  BAJA          → gris oscuro
+
+FILTROS:
+  producto, estado, ubicación, búsqueda general
+
+DETALLE DEL BIEN:
+- Todos los datos
+- Timeline PrimeNG con historial cronológico
+- Imagen del código de barras (consumir endpoint imagen)
+- Botón descargar código de barras (PNG)
+- Botón descargar PDF
+- Si está PRESTADO: mostrar prestatario, desde cuándo,
+  vencimiento del préstamo
+
+CREACIÓN MASIVA:
+- Formulario para crear N unidades del mismo producto
+- Campos comunes a todas + campos individuales por fila
+  (número de serie, código interno)
+
+PERMISOS:
+  BIEN_LISTAR / BIEN_CREAR / BIEN_EDITAR
+
+
+================================================================
+9. MÓDULO DE INVENTARIO
+================================================================
+
+ENDPOINTS DISPONIBLES:
+  GET /api/inventario               → resumen general
+  GET /api/inventario/productos/:id → stock de un producto
+  GET /api/inventario/movimientos   → lista de movimientos
+  GET /api/inventario/alertas       → productos bajo stock
+
+VISTA PRINCIPAL:
+- Cards resumen:
+    Total bienes
+    Disponibles
+    Prestados
+    En reparación
+    Vendidos
+    Dados de baja
+- Sección alertas de stock bajo
+- Tabla de movimientos recientes
+
+MOVIMIENTOS:
+- Lista de solo lectura (NO se editan)
+- Filtros: tipo de movimiento, producto, rango fechas, usuario
+
+PERMISO:
+  INVENTARIO_CONSULTAR / INVENTARIO_AJUSTAR
+
+
+================================================================
+10. MÓDULO DE PROVEEDORES
+================================================================
+
+ENDPOINTS DISPONIBLES:
+  GET    /api/proveedores         → listar (paginado)
+  POST   /api/proveedores         → crear
+  GET    /api/proveedores/:id     → obtener uno
+  PUT    /api/proveedores/:id     → editar
+  PATCH  /api/proveedores/:id/estado
+
+TABLA:
+- Tipo documento, número documento, razón social,
+  contacto, teléfono, email, ciudad, estado
+- Búsqueda por nombre o número de documento
+
+PERMISO:
+  PROVEEDOR_LISTAR / PROVEEDOR_CREAR / PROVEEDOR_EDITAR
+
+
+================================================================
+11. MÓDULO DE COMPRAS
+================================================================
+
+ENDPOINTS DISPONIBLES:
+  GET    /api/compras              → listar (paginado)
+  POST   /api/compras              → crear (estado BORRADOR)
+  GET    /api/compras/:id          → obtener con detalle
+  PUT    /api/compras/:id          → editar (solo BORRADOR)
+  POST   /api/compras/:id/confirmar → confirmar compra
+  POST   /api/compras/:id/anular   → anular compra
+
+TABLA:
+- Número factura, proveedor, fecha, total, estado (badge)
+
+BADGES:
+  BORRADOR   → gris
+  CONFIRMADA → verde
+  ANULADA    → rojo
+
+FORMULARIO:
+- Encabezado: proveedor (autocomplete), número factura, fecha
+- Detalle (tabla editable):
+    Agregar productos por nombre/código
+    Cantidad, precio unitario, descuento, impuesto
+    Subtotal y total calculados automáticamente
+- Totales: subtotal, impuesto, descuento, TOTAL
+- Botón "Confirmar": disponible solo en BORRADOR
+  Al confirmar genera movimientos de inventario
+- Botón "Anular": disponible solo en CONFIRMADA
+  Requiere ConfirmDialog
+
+PERMISOS:
+  COMPRA_LISTAR / COMPRA_CREAR / COMPRA_ANULAR
+
+
+================================================================
+12. MÓDULO DE PRÉSTAMOS
+================================================================
+
+ENDPOINTS DISPONIBLES:
+  GET    /api/prestamos              → listar (paginado)
+  POST   /api/prestamos              → crear
+  GET    /api/prestamos/:id          → obtener con detalle
+  POST   /api/prestamos/:id/devolver → registrar devolución
+  PATCH  /api/prestamos/:id/estado   → cambiar estado
+
+TABLA:
+- Prestatario, cantidad bienes prestados, fecha préstamo,
+  fecha vencimiento, estado (badge), acciones
+
+BADGES:
+  ACTIVO                → azul
+  DEVUELTO              → verde
+  VENCIDO               → rojo (+ resaltar fila en rojo)
+  PARCIALMENTE_DEVUELTO → amarillo
+  CANCELADO             → gris
+
+ALERTA VISUAL:
+  Vencidos            → fila roja
+  Próximos a vencer   → fila amarilla (menos de 3 días)
+
+FORMULARIO NUEVO PRÉSTAMO:
+- Prestatario: buscar existente o crear nuevo (inline)
+- Selección de bienes: SOLO los con estado DISPONIBLE
+- Fecha vencimiento esperada
+- Observaciones
+- Al guardar: bienes seleccionados pasan a estado PRESTADO
+
+DIALOG DE DEVOLUCIÓN:
+- Lista de bienes del préstamo con checkbox
+  (permite devolución parcial)
+- Para cada bien devuelto elegir:
+    BUENO / CON_DAÑOS / PERDIDO
+- Observaciones generales y por bien
+- Al confirmar: actualiza bien, préstamo y movimiento
+
+PERMISOS:
+  PRESTAMO_LISTAR / PRESTAMO_CREAR / PRESTAMO_DEVOLVER
+
+
+================================================================
+13. MÓDULO DE VENTAS
+================================================================
+
+ENDPOINTS DISPONIBLES:
+  GET    /api/ventas               → listar (paginado)
+  POST   /api/ventas               → crear (estado BORRADOR)
+  GET    /api/ventas/:id           → obtener con detalle
+  PUT    /api/ventas/:id           → editar (solo BORRADOR)
+  POST   /api/ventas/:id/confirmar → confirmar venta
+  POST   /api/ventas/:id/anular    → anular venta
+
+Similar a compras pero para salidas:
+- Campo cliente (texto libre o entidad)
+- Líneas: producto o bien físico específico
+- Confirmar venta genera movimientos y cambia estado de bienes
+
+PERMISOS:
+  VENTA_LISTAR / VENTA_CREAR / VENTA_ANULAR
+
+
+================================================================
+14. MÓDULO DE CÓDIGOS DE BARRAS
+================================================================
+
+ENDPOINTS DISPONIBLES:
+  GET /api/bienes/:id/codigo-barras         → datos
+  GET /api/bienes/:id/codigo-barras/imagen  → imagen PNG
+  GET /api/bienes/:id/codigo-barras/pdf     → PDF
+  GET /api/codigos-barras/:codigo           → buscar bien
+
+FUNCIONALIDADES:
+- Campo de búsqueda para escanear o escribir código
+- Al encontrar el bien mostrar:
+    Todos los datos del bien
+    Producto y categoría
+    Estado actual con badge
+    Ubicación
+    Si está PRESTADO: prestatario, desde cuándo, vencimiento
+- Botón imprimir etiqueta individual
+- Vista impresión masiva:
+    Seleccionar múltiples bienes
+    Generar hoja A4 con todas las etiquetas
+
+
+================================================================
+15. MÓDULO DE REPORTES
+================================================================
+
+ENDPOINTS DISPONIBLES:
+  GET /api/reportes/inventario
+  GET /api/reportes/inventario/categoria
+  GET /api/reportes/prestamos/activos
+  GET /api/reportes/prestamos/vencidos
+  GET /api/reportes/bienes/:id/historial
+  GET /api/reportes/movimientos
+  GET /api/reportes/bienes/ubicacion
+
+TODOS LOS REPORTES DEBEN TENER:
+- Filtros configurables
+- Exportar a Excel
+- Exportar a PDF
+- Vista previa en pantalla con tabla PrimeNG
+
+PERMISO:
+  REPORTES_CONSULTAR
+
+
+================================================================
+16. DASHBOARD
+================================================================
+
+ENDPOINT:
+  GET /api/dashboard/resumen
+
+RESPUESTA:
+{
+  "productos": 150,
+  "bienes": 850,
+  "disponibles": 620,
+  "prestados": 80,
+  "enReparacion": 20,
+  "vendidos": 100,
+  "alertasStock": 12,
+  "prestamosVencidos": 8
+}
+
+COMPONENTES:
+- Cards con íconos para cada métrica
+- Gráfica distribución estados de bienes (doughnut o pie)
+- Gráfica movimientos por mes (bar o line)
+- Tabla de últimos movimientos
+- Lista de préstamos próximos a vencer
+
+PERMISO:
+  DASHBOARD_CONSULTAR
+
+
+================================================================
+17. CONTROL DE PERMISOS EN EL FRONTEND
+================================================================
+
+Los permisos vienen en el array "permisos" del localStorage.
+
+Implementar directiva:
+  *hasPermission="'USUARIO_CREAR'"
+
+Guard en rutas:
+  canActivate: [PermissionGuard],
+  data: { permission: 'PRODUCTO_CREAR' }
+
+REGLA: Los elementos se OCULTAN (ngIf), no solo se deshabilitan.
+
+LISTA COMPLETA DE PERMISOS:
+  USUARIO_LISTAR        USUARIO_CREAR
+  USUARIO_EDITAR        USUARIO_ELIMINAR
+  ROL_LISTAR            ROL_CREAR           ROL_EDITAR
+  PRODUCTO_LISTAR       PRODUCTO_CREAR
+  PRODUCTO_EDITAR       PRODUCTO_ELIMINAR
+  BIEN_LISTAR           BIEN_CREAR
+  BIEN_EDITAR           BIEN_ELIMINAR
+  INVENTARIO_CONSULTAR  INVENTARIO_AJUSTAR
+  PROVEEDOR_LISTAR      PROVEEDOR_CREAR     PROVEEDOR_EDITAR
+  COMPRA_LISTAR         COMPRA_CREAR        COMPRA_ANULAR
+  VENTA_LISTAR          VENTA_CREAR         VENTA_ANULAR
+  PRESTAMO_LISTAR       PRESTAMO_CREAR      PRESTAMO_DEVOLVER
+  REPORTES_CONSULTAR
+  AUDITORIA_CONSULTAR
+  DASHBOARD_CONSULTAR
+
+
+================================================================
+18. MANEJO DE ERRORES Y UX
+================================================================
+
+- Toast PrimeNG para éxito y error
+- ConfirmDialog para acciones destructivas:
+    Anular compra/venta
+    Desactivar usuario
+    Dar de baja bien
+- Loading skeleton en tablas mientras carga
+- Validación inline en formularios
+- Pantalla 403 para acceso denegado
+- Pantalla 404 para rutas inexistentes
+- Aviso de expiración de sesión 5 minutos antes
+
+
+================================================================
+19. CONFIGURACIÓN DE ENTORNOS
+================================================================
+
+// src/environments/environment.ts
+export const environment = {
+  production: false,
+  apiUrl: 'http://localhost:3000/api'
+};
+
+// src/environments/environment.prod.ts
+export const environment = {
+  production: true,
+  apiUrl: 'https://tu-dominio.com/api'
+};
+
+
+================================================================
+20. INTERFACES TYPESCRIPT (core/models)
+================================================================
+
+interface Usuario {
+  id_usuario: string;
+  nombre: string;
+  apellido: string;
+  username: string;
+  email: string;
+  activo: boolean;
+  fecha_ultimo_acceso?: string;
+  fecha_creacion: string;
+  roles?: Rol[];
+}
+
+interface Rol {
+  id_rol: string;
+  nombre: string;
+  descripcion?: string;
+  activo: boolean;
+}
+
+interface Permiso {
+  id_permiso: string;
+  nombre: string;
+  modulo: string;
+  descripcion?: string;
+}
+
+interface Categoria {
+  id_categoria: string;
+  nombre: string;
+  descripcion?: string;
+  activo: boolean;
+}
+
+interface Producto {
+  id_producto: string;
+  codigo_producto?: string;
+  nombre: string;
+  descripcion?: string;
+  id_categoria: string;
+  categoria?: Categoria;
+  marca?: string;
+  modelo?: string;
+  unidad_medida: string;
+  stock_minimo: number;
+  stock_maximo?: number;
+  precio_compra?: number;
+  precio_venta?: number;
+  activo: boolean;
+}
+
+interface Estado {
+  id_estado: string;
+  codigo: string;
+  nombre: string;
+  modulo: string;
+}
+
+interface Bien {
+  id_bien: number;
+  id_producto: string;
+  producto?: Producto;
+  codigo_interno?: string;
+  numero_serie?: string;
+  id_estado: string;
+  estado?: Estado;
+  ubicacion?: string;
+  fecha_adquisicion?: string;
+  precio_adquisicion?: number;
+  observaciones?: string;
+  activo: boolean;
+}
+
+interface Proveedor {
+  id_proveedor: string;
+  tipo_documento: string;
+  numero_documento: string;
+  razon_social: string;
+  nombre_contacto?: string;
+  telefono?: string;
+  email?: string;
+  direccion?: string;
+  ciudad?: string;
+  activo: boolean;
+}
+
+interface Compra {
+  id_compra: string;
+  id_proveedor: string;
+  proveedor?: Proveedor;
+  numero_factura?: string;
+  fecha_compra: string;
+  subtotal: number;
+  impuesto: number;
+  descuento: number;
+  total: number;
+  estado?: Estado;
+  detalle?: CompraDetalle[];
+}
+
+interface CompraDetalle {
+  id_detalle: string;
+  id_producto: string;
+  producto?: Producto;
+  cantidad: number;
+  precio_unitario: number;
+  descuento: number;
+  impuesto: number;
+  subtotal: number;
+  total: number;
+}
+
+interface Prestatario {
+  id_prestatario: string;
+  tipo: string;
+  nombre: string;
+  apellido?: string;
+  identificacion?: string;
+  cargo?: string;
+  dependencia?: string;
+  telefono?: string;
+  email?: string;
+  activo: boolean;
+}
+
+interface Prestamo {
+  id_prestamo: string;
+  id_prestatario: string;
+  prestatario?: Prestatario;
+  fecha_prestamo: string;
+  fecha_vencimiento: string;
+  fecha_devolucion?: string;
+  estado?: Estado;
+  observaciones?: string;
+  detalle?: PrestamoDetalle[];
+}
+
+interface PrestamoDetalle {
+  id_detalle: string;
+  id_bien: number;
+  bien?: Bien;
+  fecha_devolucion?: string;
+  estado_devolucion?: string;
+  observaciones?: string;
+}
+
+interface MovimientoInventario {
+  id_movimiento: string;
+  id_producto: string;
+  producto?: Producto;
+  id_bien?: number;
+  tipo_movimiento: string;
+  cantidad: number;
+  stock_anterior: number;
+  stock_nuevo: number;
+  referencia_tipo?: string;
+  referencia_id?: string;
+  observaciones?: string;
+  fecha_creacion: string;
+}
+
+interface DashboardResumen {
+  productos: number;
+  bienes: number;
+  disponibles: number;
+  prestados: number;
+  enReparacion: number;
+  vendidos: number;
+  alertasStock: number;
+  prestamosVencidos: number;
+}
+
+interface AuthData {
+  token: string;
+  usuario: Usuario;
+  roles: string[];
+  permisos: string[];
+}
+
+
+================================================================
+21. REGLAS DE IMPLEMENTACIÓN
+================================================================
+
+- Todos los componentes standalone
+- Lazy loading en todos los módulos de negocio
+- Tipado estricto, sin "any"
+- Servicios con providedIn: 'root'
+- Reactive Forms en todos los formularios
+- Interfaces en core/models/
+- No hacer lógica de negocio en componentes
+- Usar async pipe donde sea posible
+- Usar takeUntilDestroyed para suscripciones manuales
+- El frontend nunca confía en datos del servidor para
+  decisiones críticas: leer permisos del localStorage
+  para mostrar/ocultar UI
+
+
+================================================================
+FIN DEL DOCUMENTO
+================================================================
