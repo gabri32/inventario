@@ -1,7 +1,6 @@
 import dotenv from 'dotenv';
 dotenv.config();
 import cors from 'cors';
-import https from 'https';
 import express from 'express';
 import sequelize from './db/database.js';
 import { fileURLToPath } from 'url';
@@ -13,26 +12,38 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
-app.use(express.json());
+
 const allowedOrigins = [
   'https://inventariou.netlify.app',
+  'http://localhost:5173',
+  'http://localhost:3000'
 ];
 
 const corsOptions = {
   origin: (origin, callback) => {
-    // Allow requests with no origin (like mobile apps, curl, or Postman)
     if (!origin || allowedOrigins.includes(origin)) {
       callback(null, true);
     } else {
-      callback(new Error('Not allowed by CORS'));
+      callback(new Error('Bloqueado por CORS: ' + origin));
     }
   },
-  optionsSuccessStatus: 200,
-  credentials: true // Set to true if sending cookies or authorization headers
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept'],
+  optionsSuccessStatus: 200
 };
 
+// 1. Aplicar CORS global
 app.use(cors(corsOptions));
-// Servir archivos estáticos de uploads
+
+// 2. Responder explícitamente a peticiones preflight (OPTIONS)
+app.options('*', cors(corsOptions));
+
+// 3. Body parsers
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+// Archivos estáticos
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // Rutas
@@ -41,13 +52,10 @@ app.use('/api/auth', authRoutes);
 
 const PORT = process.env.PORT || 3000;
 
-
-
 const startServer = async () => {
   try {
     await sequelize.authenticate();
     console.log('Base de datos conectada');
-
     app.listen(PORT, () => {
       console.log(`Servidor en puerto ${PORT}`);
     });
